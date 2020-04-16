@@ -39,17 +39,28 @@ int main(int argc, char *argv[]) {
     else if (strcmp("client", argv[1]) == 0){
     	display_error(make_soq_sec(&sock, CLIENT, argv[2], atoi(argv[3])));
     	display_error(connect_socket(&sock));
-    	while (true) {
-            uint8_t msg[BUFF_SIZE];
-            uint8_t buffer[BUFF_SIZE];
-            if (read_from_server(&sock, buffer) == OK) {
-                buffer[100] = '\0';
-                fprintf(stdout, "%s", buffer);
+        uint8_t msg[BUFF_SIZE];
+        uint8_t buffer[BUFF_SIZE];
+
+        if (fork() == 0) {
+            while (true) {
+                memset(msg, 0, BUFF_SIZE);
+                fscanf(stdin, "\n%[^\n]", msg);
+                display_error(write_to_server(&sock, msg, BUFF_SIZE));
             }
-	    	fscanf(stdin, "\n%[^\n]", msg);
-	    	if (strcmp(msg, "exit") == 0) break;
-			display_error(write_to_server(&sock, msg));
-    	}
-		close(sock.socket_desc);
+        }
+        else {
+            while (true) {
+                memset(buffer, 0, BUFF_SIZE);
+                if (read_from_server(&sock, buffer, BUFF_SIZE) == OK) {
+                    fprintf(stdout, "%s\n", buffer);
+                }
+                else {
+                    fprintf(stdout, "server out of reach\n");
+                    break;
+                }
+            }
+        }
+        close(sock.socket_desc);
     }
 }

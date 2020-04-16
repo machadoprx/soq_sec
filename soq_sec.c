@@ -15,24 +15,24 @@ int make_soq_sec(soq_sec *res, enum socket_type type, const char* address, const
     
     res->channel.sin6_family = AF_INET6;
     res->channel.sin6_port = htons(port);
-    
+    if (inet_pton(AF_INET6, address, &res->channel.sin6_addr) < 0) {
+        return CONVERSION;
+    }
+
     if (type == SERVER) {
         int on = 1;
-        setsockopt(res->socket_desc, SOL_SOCKET, SO_REUSEADDR, (byte_t*) &on, sizeof(int));
+        setsockopt(res->socket_desc, SOL_SOCKET, SO_REUSEADDR, (uint8_t*) &on, sizeof(int));
         if (bind(res->socket_desc, (struct sockaddr *) &res->channel, sizeof(res->channel)) < 0) {
             return BIND;
         }
     }
-
-    if (inet_pton(AF_INET6, address, &res->channel.sin6_addr) < 0) {
-        return CONVERSION;
-    }
     return OK;
 }
 
-int read_from_client(int filedes, struct sockaddr_in6 client_name, size_t chunk_size) {
-    byte_t buffer[chunk_size];
-    int nbytes = read(filedes, buffer, chunk_size);
+int read_from_client(int client_des, uint8_t buffer[], int *n, size_t chunk_size) {
+    int nbytes = recv(client_des, buffer, chunk_size, 0);
+    *n = nbytes + 1;
+
     if (nbytes < 0) {
         return READ;
     }
@@ -40,12 +40,26 @@ int read_from_client(int filedes, struct sockaddr_in6 client_name, size_t chunk_
         return END;
     else {
         buffer[nbytes] = '\0';
-        fprintf(stdout, "bitch %hd : \"%s\" \n", ntohs(client_name.sin6_port), buffer);
         return OK;
     }
 }
 
-int start_listen(soq_sec *host, int connections, size_t chunk_size , int (*callback)(int, struct sockaddr_in6, size_t)) {
+int write_to_client(int server_socket, int client_socket, fd_set *active, int id, uint8_t buffer[], int len, int max) {
+    for (int i = 0; i <= max; i++) {
+        if (FD_ISSET(i, active)) {
+            if (i != server_socket && i != client_socket) {
+                uint8_t msg[9 + len];
+                sprintf(msg, "%d : %s", id, buffer);
+                msg[8 + len] = '\0';
+                if (send(i, msg, len + 9, 0) < 0)
+                    continue;
+            }
+        }
+    }
+    return OK;
+}
+
+int start_listen(soq_sec *host, int connections, size_t chunk_size , int (*callback)(int, uint8_t[], int*, size_t)) {
     
     int status = OK;
 
@@ -57,42 +71,49 @@ int start_listen(soq_sec *host, int connections, size_t chunk_size , int (*callb
     if (listen(server_socket, 1) < 0) {
         return LISTEN;
     }
-
     fd_set active_fd_set, read_fd_set;
     FD_ZERO(&active_fd_set);
     FD_SET(server_socket, &active_fd_set);
-    int max_conn = connections > FD_SETSIZE ? FD_SETSIZE : connections;
+    int fd_max = server_socket;
 
-    while (true) {
+    while(true) {
         read_fd_set = active_fd_set;
-        if (select (max_conn, &read_fd_set, NULL, NULL, NULL) < 0) {
-            status = SELECT;
+        if (select(fd_max + 1, &read_fd_set, NULL, NULL, NULL) < 0) {
+            return SELECT;
         }
-        for (int i = 0; i < max_conn; ++i) {
+        for (int i = 0; i <= fd_max; ++i) {
             if (FD_ISSET(i, &read_fd_set)) {
                 struct sockaddr_in6 client_name;
                 if (i == server_socket) {
                     socklen_t client_size = sizeof(client_name);
                     int client = accept(server_socket, (struct sockaddr *) &client_name, &client_size);
                     if (client < 0) {
-                        status = ACCEPT;
+                        display_error(ACCEPT);
                         continue;
                     }
-                    fprintf(stdout,
+                    FD_SET(client, &active_fd_set);
+                    if (client > fd_max) {
+                        fd_max = client;
+                    }
+                    fprintf(stderr,
                             "new bitch, port %hd joined\n",
                             ntohs(client_name.sin6_port));
-                    FD_SET(client, &active_fd_set);
                 }
                 else {
-                    if (callback(i, client_name, chunk_size) == READ) {
-                        close(i);
+                    int n;
+                    uint8_t buffer[chunk_size];
+                    if (callback(i, buffer, &n, chunk_size) != OK) {
+                        close(i);   
                         FD_CLR(i, &active_fd_set);
+                    }
+                    else {
+                        int id = (int)ntohs(client_name.sin6_port);
+                        write_to_client(server_socket, i, &active_fd_set, id, buffer, n, fd_max);
                     }
                 }
             }
         }
     }
-
     return status;
 }
 
@@ -117,8 +138,15 @@ void display_error(int e) {
     fprintf(stderr, "%s\n", msg);
 }
 
-int write_to_server(soq_sec *sock, char *msg) {
-    if (write(sock->socket_desc, msg, strlen(msg) + 1) < 0){
+int read_from_server(soq_sec *sock, uint8_t *buffer) {
+    if (recv(sock->socket_desc, buffer, strlen((char*)buffer) + 1, 0) < 0){
+        return READ;
+    }
+    return OK;
+}
+
+int write_to_server(soq_sec *sock, uint8_t *msg) {
+    if (send(sock->socket_desc, msg, strlen((char*)msg) + 1, 0) < 0){
         return WRITE;
     }
     return OK;

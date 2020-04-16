@@ -31,35 +31,29 @@ int make_soq_sec(soq_sec *res, enum socket_type type, const char* address, const
 
 int read_from_client(int client_des, uint8_t buffer[], int *n, size_t chunk_size) {
     int nbytes = recv(client_des, buffer, chunk_size, 0);
-    *n = nbytes + 1;
+    *n = nbytes;
 
-    if (nbytes < 0) {
+    if (nbytes < 0)
         return READ;
-    }
     else if (nbytes == 0)
         return END;
-    else {
-        buffer[nbytes] = '\0';
-        return OK;
-    }
+    else return OK;
 }
 
 int write_to_client(int server_socket, int client_socket, fd_set *active, int id, uint8_t buffer[], int len, int max) {
     for (int i = 0; i <= max; i++) {
         if (FD_ISSET(i, active)) {
             if (i != server_socket && i != client_socket) {
-                uint8_t msg[9 + len];
-                sprintf(msg, "%d : %s", id, buffer);
-                msg[8 + len] = '\0';
-                if (send(i, msg, len + 9, 0) < 0)
+                if (send(i, buffer, len, 0) < 0){
                     continue;
+                }
             }
         }
     }
     return OK;
 }
 
-int start_listen(soq_sec *host, int connections, size_t chunk_size , int (*callback)(int, uint8_t[], int*, size_t)) {
+int start_listen(soq_sec *host, size_t chunk_size) {
     
     int status = OK;
 
@@ -95,14 +89,15 @@ int start_listen(soq_sec *host, int connections, size_t chunk_size , int (*callb
                     if (client > fd_max) {
                         fd_max = client;
                     }
-                    fprintf(stderr,
-                            "new bitch, port %hd joined\n",
+                    fprintf(stdout,
+                            "%s, port %hd joined\n",
+                            client_name.sin6_addr.s6_addr,
                             ntohs(client_name.sin6_port));
                 }
                 else {
                     int n;
                     uint8_t buffer[chunk_size];
-                    if (callback(i, buffer, &n, chunk_size) != OK) {
+                    if (read_from_client(i, buffer, &n, chunk_size) != OK) {
                         close(i);   
                         FD_CLR(i, &active_fd_set);
                     }
@@ -138,15 +133,15 @@ void display_error(int e) {
     fprintf(stderr, "%s\n", msg);
 }
 
-int read_from_server(soq_sec *sock, uint8_t *buffer) {
-    if (recv(sock->socket_desc, buffer, strlen((char*)buffer) + 1, 0) < 0){
+int read_from_server(soq_sec *sock, uint8_t *buffer, int len) {
+    if (recv(sock->socket_desc, buffer, len, 0) <= 0){
         return READ;
     }
     return OK;
 }
 
-int write_to_server(soq_sec *sock, uint8_t *msg) {
-    if (send(sock->socket_desc, msg, strlen((char*)msg) + 1, 0) < 0){
+int write_to_server(soq_sec *sock, uint8_t *msg, int len) {
+    if (send(sock->socket_desc, msg, len, 0) <= 0){
         return WRITE;
     }
     return OK;

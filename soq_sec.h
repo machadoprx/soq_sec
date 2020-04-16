@@ -11,6 +11,8 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include <stdbool.h>
+#include <signal.h>
+#include <sys/wait.h> 
 
 enum socket_type{SERVER, CLIENT};
 enum error_t{OK, END, SELECT, ACCEPT, LISTEN, BIND, SOCKET, CONNECT, PARSE, CONVERSION, REVERSE, READ, WRITE};
@@ -24,9 +26,9 @@ typedef struct _soq_sec {
 } soq_sec;
 
 int connect_socket(soq_sec *sock);
-int write_to_server(soq_sec *sock, uint8_t *msg);
-int read_from_server(soq_sec *sock, uint8_t *msg);
+int write_to_server(soq_sec *sock, uint8_t *msg, int len);
+int read_from_server(soq_sec *sock, uint8_t *msg, int len);
 void display_error(int e);
 int make_soq_sec(soq_sec *res, enum socket_type type, const char *address, const uint16_t port);
 int read_from_client(int, uint8_t[], int*, size_t);
-int start_listen(soq_sec *host, int connections, size_t chunk_size, int (*callback)(int, uint8_t[], int*, size_t));
+int start_listen(soq_sec *host, size_t chunk_size);

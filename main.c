@@ -1,4 +1,7 @@
 #include "soq_sec.h"
+#include <termios.h>
+#include <unistd.h>
+
 #define BUFF_SIZE 4096
 #define MAX_CONN 100
 
@@ -34,33 +37,52 @@ int main(int argc, char *argv[]) {
     soq_sec sock;
     if (strcmp("server", argv[1]) == 0) {
 	    display_error(make_soq_sec(&sock, SERVER, argv[2], atoi(argv[3])));
-	    display_error(start_listen(&sock, MAX_CONN, BUFF_SIZE, read_from_client));
+	    display_error(start_listen(&sock, BUFF_SIZE));
     }
-    else if (strcmp("client", argv[1]) == 0){
+    else if (strcmp("client", argv[1]) == 0) {
     	display_error(make_soq_sec(&sock, CLIENT, argv[2], atoi(argv[3])));
     	display_error(connect_socket(&sock));
+
         uint8_t msg[BUFF_SIZE];
         uint8_t buffer[BUFF_SIZE];
 
-        if (fork() == 0) {
+        pid_t child_pid = fork();
+
+        if (child_pid == 0) {
+            uint8_t nick[20];
+            fprintf(stdout, "insert your nickname : ");
+            fscanf(stdin, "%s", nick);
+
             while (true) {
+                struct termios oldt;
+                tcgetattr(STDIN_FILENO, &oldt);
+                struct termios newt = oldt;
+                newt.c_lflag &= ~ECHO;
+                tcsetattr(STDIN_FILENO, TCSANOW, &newt);
+
+                memset(buffer, 0, BUFF_SIZE);
                 memset(msg, 0, BUFF_SIZE);
-                fscanf(stdin, "\n%[^\n]", msg);
-                display_error(write_to_server(&sock, msg, BUFF_SIZE));
+                int err = fscanf(stdin, "\n%[^\n]", buffer);
+                sprintf((char*)msg, "%s : %s", nick, buffer);
+                if (err > 0) {
+                    fprintf(stdout, "%s\n", msg);
+                    display_error(write_to_server(&sock, msg, BUFF_SIZE));
+                }
             }
         }
-        else {
+        else if (child_pid > 0){
             while (true) {
                 memset(buffer, 0, BUFF_SIZE);
                 if (read_from_server(&sock, buffer, BUFF_SIZE) == OK) {
                     fprintf(stdout, "%s\n", buffer);
                 }
                 else {
-                    fprintf(stdout, "server out of reach\n");
+                    fprintf(stdout, "disconnected from server\n");
                     break;
                 }
             }
+            close(sock.socket_desc);
+            wait(NULL);
         }
-        close(sock.socket_desc);
     }
 }

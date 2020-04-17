@@ -21,7 +21,8 @@ typedef struct _soq_sec {
     uint16_t port;
     int32_t socket_desc;
     struct sockaddr_in6 channel;
-    char address[30];
+    uint8_t address[17];
+    uint8_t pbk_str[2][65];
     enum socket_type type;
 } soq_sec;
 

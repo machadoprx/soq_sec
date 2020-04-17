@@ -3,7 +3,7 @@
 int make_soq_sec(soq_sec *res, enum socket_type type, const char* address, const uint16_t port) {
 
     memset(res, 0, sizeof(*res));
-    strcpy(res->address, address);
+    strcpy((char*)res->address, address);
 
     res->type = type;
     res->port = port;
@@ -32,7 +32,6 @@ int make_soq_sec(soq_sec *res, enum socket_type type, const char* address, const
 int read_from_client(int client_des, uint8_t buffer[], int *n, size_t chunk_size) {
     int nbytes = recv(client_des, buffer, chunk_size, 0);
     *n = nbytes;
-
     if (nbytes < 0)
         return READ;
     else if (nbytes == 0)
@@ -49,6 +48,15 @@ int write_to_client(int server_socket, int client_socket, fd_set *active, int id
                 }
             }
         }
+    }
+    return OK;
+}
+
+int send_session_key(uint8_t key[2][65], int client_socket) {
+    int x = send(client_socket, key[0], 65, 0);
+    int z = send(client_socket, key[1], 65, 0);
+    if (x < 0 || z < 0){
+        return WRITE;
     }
     return OK;
 }
@@ -89,6 +97,7 @@ int start_listen(soq_sec *host, size_t chunk_size) {
                     if (client > fd_max) {
                         fd_max = client;
                     }
+                    send_session_key(host->pbk_str, client);
                     fprintf(stdout,
                             "%s, port %hd joined\n",
                             client_name.sin6_addr.s6_addr,

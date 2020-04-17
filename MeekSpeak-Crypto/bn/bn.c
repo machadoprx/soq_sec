@@ -475,6 +475,25 @@ big_lst(big_t *a, big_t *r)
 }
 
 void
+big_to_str(big_t *a, char str[65])
+{
+	memset(str, 0, 65);
+
+	int n = big_get_len(a);
+	dig_t *ap = a->value + n;
+	char *ptr = str;
+	char buffer[9];
+
+	for (; ap >= a->value; --ap) {
+		memset(buffer, 0, 9);
+		*ap > 0xFFFFFFFull ? snprintf(buffer, 9, "%lx", *ap) : snprintf(buffer, 9, "%08lx", *ap);
+		for (int i = 0; i < 8; i++) {
+			*(ptr++) = buffer[i];
+		}
+	}
+}
+
+void
 big_to_hex(big_t *a)
 {
 	int n = big_get_len(a);

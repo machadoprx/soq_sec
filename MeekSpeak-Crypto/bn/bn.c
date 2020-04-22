@@ -17,7 +17,7 @@ dig_t*
 big_to_bin(big_t *a, int *lenght)
 {
 	int k = big_get_len(a);	
-	dig_t *bin = malloc(512 * sizeof(dig_t));
+	dig_t *bin = (dig_t*)malloc(512 * sizeof(dig_t));
 	dig_t *p = bin;
 	dig_t *ap = a->value + k, t = *(ap), mask = 0x80000000ull;
 	memset(bin, 0, 512 * sizeof(dig_t));
@@ -718,7 +718,7 @@ big_rnd_dig(big_t *r)
 
 	for (i = 0; i < 8; i++) {
 		_rdseed32_step(&rand_digit);
-		*(rp++) = rand_digit;
+		*(rp++) = (uint64_t)rand_digit;
 	}
 
 }

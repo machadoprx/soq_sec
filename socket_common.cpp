@@ -20,7 +20,7 @@ int make_soq_sec(soq_sec *res, enum socket_type type, const char* address, const
 
     if (type == SERVER) {
         int on = 1;
-        setsockopt(res->socket_desc, SOL_SOCKET, SO_REUSEADDR, (uint8_t*) &on, sizeof(int));
+        setsockopt(res->socket_desc, SOL_SOCKET, SO_REUSEADDR, (char*) &on, sizeof(int));
         if (bind(res->socket_desc, (struct sockaddr *) &res->channel, sizeof(res->channel)) < 0) {
             return BIND;
         }
@@ -33,9 +33,9 @@ int send_wait(int sock, uint8_t *data, int len, int sleep_time, int tries) {
     for (int t = 0; t < tries; t++) {
         success = send(sock, data, len, 0);
         if (success < 0) {
-            sleep(sleep_time);
+            usleep(sleep_time);
         }
-        else break;
+        else if(success > 0) break;
     }
     return success;
 }
@@ -45,10 +45,11 @@ int recv_wait(int sock, uint8_t *data, int len, int sleep_time, int tries) {
     for (int t = 0; t < tries; t++) {
         success = recv(sock, data, len, 0);
         if (success < 0) {
-            sleep(sleep_time);
+            usleep(sleep_time);
         }
-        else break;
+        else if(success > 0) break;
     }
+
     return success;
 }
 

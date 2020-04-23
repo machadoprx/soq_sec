@@ -31,17 +31,26 @@ extern "C" {
 enum socket_type{SERVER, CLIENT};
 enum err_t{OK, END, SELECT, ACCEPT, LISTEN, BIND, SOCKET, CONNECT, PARSE, CONVERSION, REVERSE, READ, WRITE};
 
+
+/*
+choose random k
+m * k * G
+m * G
+cipher = ENC(msg, m * k * G)
+SEND(cipher, m * G)
+MUL(m * G, k)
+plain = ENC(cipher, m * k * G)
+*/
 typedef struct _client {
     uint8_t user_name[20];
     int32_t socket_desc;
-    uint8_t partial_key[130];
 } client_t;
 
 typedef struct _soq_sec {
     uint16_t port;
     int32_t socket_desc;
     struct sockaddr_in6 channel;
-    uint8_t server_key[130];
+    uint8_t session_pvk[65]; //m
     uint8_t address[17];
     enum socket_type type;
     std::map<int, client_t> connected_clients;

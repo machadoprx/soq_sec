@@ -1,25 +1,10 @@
 #include "server.h"
 
-int read_from_client(int client_des, uint8_t buffer[], int *n, size_t chunk_size) {
-    int nbytes = recv(client_des, buffer, chunk_size, 0);
-    *n = nbytes;
-    if (nbytes < 0)
-        return READ;
-    else if (nbytes == 0)
-        return END;
-    else return OK;
-}
-
 int write_to_client(soq_sec *host, int server_socket, int client_socket, fd_set *active, int id, uint8_t buffer[], int len, int max) {
     for (int i = 0; i <= max; i++) {
         if (FD_ISSET(i, active)) {
             if (i != server_socket && i != client_socket) {
-                if (send(i, buffer, len, 0) < 0){
-                    continue;
-                }
-                else {
-                    std::cout << "msg sent to " << host->connected_clients[i].user_name << "\n";
-                }
+                send_wait(i, buffer, len, 500, 5);
             }
         }
     }
@@ -35,30 +20,13 @@ int connection_handler(soq_sec *host, struct sockaddr_in6 *client_name, int serv
     }
 
     client_t user;
-    recv_wait(client, user.user_name, 20, 1, 3);
+    int len = recv_wait(client, user.user_name, 20, 500, 5);
     user.socket_desc = client;
-
-    //copy new partial key
-    memcpy(user.partial_key, host->server_key, 130);
-
-    //send number of iter
-    uint8_t size[1];
-    size[0] = (uint8_t)host->connected_clients.size() + 1;
-    send_wait(client, size, 1, 1, 3);
-
-    // update server new key
-    send_wait(client, host->server_key, 130, 1, 3);
-    // after mul by new client private key:
-    recv_wait(client, host->server_key, 130, 1, 3);
-    // update clients key
-    for (int i = 4; i < size[0] + 3; i++) {
-        send_wait(client, host->connected_clients[i].partial_key, 130, 1, 3);
-        // after mul by new client private key:
-        recv_wait(client, host->connected_clients[i].partial_key, 130, 1, 3);
+    if (len < 20){
+        return OK;
     }
-
     host->connected_clients[client] = user;
-    
+    send_wait(client, host->session_pvk, 65, 500, 5);
     FD_SET(client, active_fd_set);
     if (client > (*fd_max)) {
         (*fd_max) = client;
@@ -80,10 +48,11 @@ int start_listen(soq_sec *host, size_t chunk_size) {
     if (listen(server_socket, 1) < 0) {
         return LISTEN;
     }
-    ec_t curve;
-    ec_init_c25519(curve);
-    big_to_str(&curve.G.X, (char*)host->server_key);
-    big_to_str(&curve.G.Z, (char*)(host->server_key + 65));
+
+    big_t m;
+    big_rnd_dig(&m);
+    m.value[7] &= 0xfffffffull;
+    big_to_str(&m, (char*)host->session_pvk);
 
     fd_set active_fd_set, read_fd_set;
     FD_ZERO(&active_fd_set);
@@ -102,15 +71,14 @@ int start_listen(soq_sec *host, size_t chunk_size) {
                     connection_handler(host, &client_name, server_socket, &active_fd_set, &fd_max);
                 }
                 else {
-                    int n;
-                    uint8_t buffer[chunk_size];
-                    if (read_from_client(i, buffer, &n, chunk_size) != OK) {
+                    uint8_t buffer[chunk_size + 130];
+                    if (recv_wait(i, buffer, chunk_size + 130, 500, 5) < 0) {
                         close(i);   
                         FD_CLR(i, &active_fd_set);
                     }
                     else {
                         int id = (int)ntohs(client_name.sin6_port);
-                        write_to_client(host, server_socket, i, &active_fd_set, id, buffer, n, fd_max);
+                        write_to_client(host, server_socket, i, &active_fd_set, id, buffer, chunk_size + 130, fd_max);
                     }
                 }
             }

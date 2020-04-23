@@ -491,6 +491,7 @@ big_to_str(big_t *a, char str[65])
 			*(ptr++) = buffer[i];
 		}
 	}
+	str[64] = '\0';
 }
 
 void
@@ -720,7 +721,6 @@ big_rnd_dig(big_t *r)
 		_rdseed32_step(&rand_digit);
 		*(rp++) = (uint64_t)rand_digit;
 	}
-
 }
 
 void

@@ -9,39 +9,6 @@ void set_cmd_line() {
     tcsetattr(STDIN_FILENO, TCSANOW, &newt);
 }
 
-int get_command(const char* command) {
-    if (strcmp(command, "/connect") == 0) {
-        return CON_SERVER;
-    }
-    else if (strcmp(command, "/quit") == 0) {
-        return QUIT;
-    }
-    else if (strcmp(command, "/ping") == 0) {
-        return PING;
-    }
-    else if (strcmp(command, "/join") == 0) {
-        return JOIN;
-    }
-    else if (strcmp(command, "/nickname") == 0) {
-        return NICKNAME;
-    }
-    else if (strcmp(command, "/kick") == 0) {
-        return KICK;
-    }
-    else if (strcmp(command, "/mute") == 0) {
-        return MUTE;
-    }
-    else if (strcmp(command, "/unmute") == 0) {
-        return UNMUTE;
-    }
-    else if (strcmp(command, "/whois") == 0) {
-        return WHOIS;
-    }
-    else {
-        return NOT_FOUND;
-    }
-}
-
 void gen_ephemeral_keys(ec_t *curve, big_t *session, big_t *p, uint8_t *pbk_str, uint32_t *shared_key) {
     memset(pbk_str, 0, 130);
     ecp_t shared_point, pbk;
@@ -81,12 +48,17 @@ int send_handler(soq_sec *sock, ec_t *curve, big_t *p, big_t *session_key) {
 
         usleep(250);
         if (fscanf(stdin, "\n%[^\n]", plain_text) > 0) {
+
             if (plain_text[0] == '/') {
                 char cmd_str[15];
                 sscanf((char*)plain_text, "%s", cmd_str);
                 int cmd = get_command(cmd_str);
                 if (cmd == NOT_FOUND)
-                    std::cout << "command not found\n";
+                    cout << "command not found\n";
+                else{
+                    send_wait(sock->socket_desc, plain_text, BUFF_SIZE, 250, 5);
+                    if (cmd == QUIT) break;
+                } 
                 continue;
             }
 
@@ -98,6 +70,7 @@ int send_handler(soq_sec *sock, ec_t *curve, big_t *p, big_t *session_key) {
             send_wait(sock->socket_desc, sender_pbk, 130, 250, 5);
         }
     }
+    wait(NULL);
     return OK;
 }
 
@@ -137,6 +110,7 @@ int recv_handler(soq_sec *sock, ec_t *curve, big_t *p, big_t *session_key) {
 
     while (true) {
         usleep(250);
+        memset(cipher, 0, BUFF_SIZE);
         if (recv_wait(sock->socket_desc, cipher, BUFF_SIZE, 250, 5) > 0) {
             usleep(250);
             uint8_t point_str[130];
@@ -151,8 +125,6 @@ int recv_handler(soq_sec *sock, ec_t *curve, big_t *p, big_t *session_key) {
             recv_wait(sock->socket_desc, user, 20, 250, 5);
             chacha_enc(shared_key, nonce, cipher, plain_text, BUFF_SIZE);
             fprintf(stdout, "%s : %s\n", user, plain_text);
-
-            memset(cipher, 0, BUFF_SIZE);
         }
         else {
             fprintf(stdout, "disconnected from server, closing connection...\n");
@@ -187,6 +159,7 @@ int connect_socket(soq_sec *sock) {
     big_t session;
     hex_to_big((char*)session_key, &session);
 
+    signal(SIGINT, SIG_IGN);
     pid_t child_pid = fork();
 
     if (child_pid == 0) {

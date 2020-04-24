@@ -712,14 +712,16 @@ void
 big_rnd_dig(big_t *r)
 {
 	big_null(r);
-	
-	int i;
-	dig_t *rp = r->value;
+	uint32_t random[16];
 	uint32_t rand_digit;
 
-	for (i = 0; i < 8; i++) {
+	for (int i = 0; i < 16; i++) {
 		_rdseed32_step(&rand_digit);
-		*(rp++) = (uint64_t)rand_digit;
+		random[i] = rand_digit;
+	}
+	chacha_block(random);
+	for (int i = 0; i < 8; i++) {
+		r->value[i] = (uint64_t) random[i];
 	}
 }
 

@@ -1,4 +1,5 @@
 #include "client.h"
+uint32_t nonce[] = {0x0, 0x4d, 0x0};
 
 void set_cmd_line() {
     struct termios oldt;
@@ -8,7 +9,40 @@ void set_cmd_line() {
     tcsetattr(STDIN_FILENO, TCSANOW, &newt);
 }
 
-void get_keys(ec_t *curve, big_t *session, big_t *p, uint8_t *pbk_str, uint32_t *shared_key) {
+int get_command(const char* command) {
+    if (strcmp(command, "/connect") == 0) {
+        return CON_SERVER;
+    }
+    else if (strcmp(command, "/quit") == 0) {
+        return QUIT;
+    }
+    else if (strcmp(command, "/ping") == 0) {
+        return PING;
+    }
+    else if (strcmp(command, "/join") == 0) {
+        return JOIN;
+    }
+    else if (strcmp(command, "/nickname") == 0) {
+        return NICKNAME;
+    }
+    else if (strcmp(command, "/kick") == 0) {
+        return KICK;
+    }
+    else if (strcmp(command, "/mute") == 0) {
+        return MUTE;
+    }
+    else if (strcmp(command, "/unmute") == 0) {
+        return UNMUTE;
+    }
+    else if (strcmp(command, "/whois") == 0) {
+        return WHOIS;
+    }
+    else {
+        return NOT_FOUND;
+    }
+}
+
+void gen_ephemeral_keys(ec_t *curve, big_t *session, big_t *p, uint8_t *pbk_str, uint32_t *shared_key) {
     memset(pbk_str, 0, 130);
     ecp_t shared_point, pbk;
     big_t k, affine;
@@ -35,28 +69,33 @@ int send_handler(soq_sec *sock, ec_t *curve, big_t *p, big_t *session_key) {
     
     set_cmd_line();
     uint32_t shared_key[8]; 
-    uint32_t nonce[3] = {0x0, 0x4d, 0x0};
 
     uint8_t sender_pbk[130];
     uint8_t plain_text[BUFF_SIZE];
     uint8_t cipher[BUFF_SIZE];
-    uint8_t msg[BUFF_SIZE + 130];
-    big_to_hex(session_key);
 
     while (true) {
-        memset(msg, 0, BUFF_SIZE + 130);
+
         memset(plain_text, 0, BUFF_SIZE);
         memset(cipher, 0, BUFF_SIZE);
 
+        usleep(250);
         if (fscanf(stdin, "\n%[^\n]", plain_text) > 0) {
-            get_keys(curve, session_key, p, sender_pbk, shared_key);
-            chacha_enc(shared_key, nonce, plain_text, cipher, BUFF_SIZE);
-            
-            memcpy(msg, sender_pbk, 130);
-            memcpy(msg + 130, cipher, BUFF_SIZE);
+            if (plain_text[0] == '/') {
+                char cmd_str[15];
+                sscanf((char*)plain_text, "%s", cmd_str);
+                int cmd = get_command(cmd_str);
+                if (cmd == NOT_FOUND)
+                    std::cout << "command not found\n";
+                continue;
+            }
 
-            send_wait(sock->socket_desc, msg, BUFF_SIZE + 130, 250, 5);
-            fprintf(stdout, "%s\n", plain_text);
+            gen_ephemeral_keys(curve, session_key, p, sender_pbk, shared_key);
+            chacha_enc(shared_key, nonce, plain_text, cipher, BUFF_SIZE);
+
+            send_wait(sock->socket_desc, cipher, BUFF_SIZE, 250, 5);
+            usleep(250);
+            send_wait(sock->socket_desc, sender_pbk, 130, 250, 5);
         }
     }
     return OK;
@@ -91,37 +130,44 @@ int recv_handler(soq_sec *sock, ec_t *curve, big_t *p, big_t *session_key) {
     ecp_t sender_pbk;
     
     uint32_t shared_key[8];
-    uint32_t nonce[3] = {0x0, 0x4d, 0x0};
     
     uint8_t plain_text[BUFF_SIZE];
-    uint8_t msg[BUFF_SIZE + 130];
+    uint8_t cipher[BUFF_SIZE];
+    memset(cipher, 0, BUFF_SIZE);
 
     while (true) {
-
-        memset(msg, 0, BUFF_SIZE + 130);
-        memset(plain_text, 0, BUFF_SIZE);
-
-        sleep(1);
-        if (recv_wait(sock->socket_desc, msg, BUFF_SIZE + 130, 250, 5) > 0) {
+        usleep(250);
+        if (recv_wait(sock->socket_desc, cipher, BUFF_SIZE, 250, 5) > 0) {
+            usleep(250);
             uint8_t point_str[130];
-            memcpy(point_str, msg, 130);
+            recv_wait(sock->socket_desc, point_str, 130, 250, 5);
+
             str_to_ecp(point_str, &sender_pbk);
             get_shared_secret(curve, &sender_pbk, p, session_key, shared_key);
+            
+            uint8_t user[20];
+            memset(plain_text, 0, BUFF_SIZE);
 
-            chacha_enc(shared_key, nonce, msg + 130, plain_text, BUFF_SIZE);
-            fprintf(stdout, "%s\n", plain_text);
+            recv_wait(sock->socket_desc, user, 20, 250, 5);
+            chacha_enc(shared_key, nonce, cipher, plain_text, BUFF_SIZE);
+            fprintf(stdout, "%s : %s\n", user, plain_text);
+
+            memset(cipher, 0, BUFF_SIZE);
         }
         else {
-            fprintf(stdout, "disconnected from server\n"); 
+            fprintf(stdout, "disconnected from server, closing connection...\n");
             break;
         }
     }
     close(sock->socket_desc);
+    signal (SIGALRM, catch_alarm);
+    alarm(2);
     wait(NULL);
     return OK;
 }
 
 int connect_socket(soq_sec *sock) {
+
     if (connect(sock->socket_desc, (struct sockaddr *)&sock->channel, sizeof(sock->channel)) < 0) {
         return CONNECT;
     }
@@ -133,17 +179,10 @@ int connect_socket(soq_sec *sock) {
     ec_t curve;
     ec_init_c25519(curve);
 
-    uint8_t user_name[20];
     uint8_t session_key[65];
-    memset(user_name, 0, 20);
     memset(session_key, 0, 65);
 
-    fprintf(stdout, "insert user name: ");
-    fscanf(stdin, "%s", (char*)user_name);
-    fflush(NULL);
-
     // send new user nickname
-    send_wait(sock->socket_desc, user_name, 20, 500, 5);
     recv_wait(sock->socket_desc, session_key, 65, 500, 5);
     big_t session;
     hex_to_big((char*)session_key, &session);

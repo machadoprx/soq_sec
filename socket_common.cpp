@@ -49,8 +49,11 @@ int recv_wait(int sock, uint8_t *data, int len, int sleep_time, int tries) {
         }
         else if(success > 0) break;
     }
-
     return success;
+}
+
+void catch_alarm (int sig) {
+    kill(0, SIGTERM);
 }
 
 void display_error(int e) {

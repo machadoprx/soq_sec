@@ -38,13 +38,18 @@ enum err_t{OK, END, SELECT, ACCEPT, LISTEN, BIND, SOCKET, CONNECT, PARSE, CONVER
 enum cmd_t{CON_SERVER, QUIT, PING, JOIN, NICKNAME, KICK, MUTE, UNMUTE, WHOIS, NOT_FOUND};
 
 typedef struct _client {
-    uint8_t user_name[20];
-    string chan = string("NONE");
-    int32_t socket_desc;
-    struct sockaddr_in6 user_info;
-    bool muted = false;
-    bool admin = false;
+    int32_t desc;
+    uint8_t name[20];
+    uint8_t chan[20];
+    struct sockaddr_in6 info;
 } client_t;
+
+typedef struct _channel_t {
+    int32_t admin_desc;
+    uint8_t name[20];
+    vector<shared_ptr<client_t>> members;
+    vector<int> muted_desc;
+} channel_t;
 
 typedef struct _soq_sec {
     uint16_t port;
@@ -53,8 +58,8 @@ typedef struct _soq_sec {
     uint8_t session_pvk[65]; //m
     uint8_t address[17];
     enum socket_type type;
-    vector<shared_ptr<client_t>> connected_clients;
-    map<string, vector<shared_ptr<client_t>>> channels;
+    vector<shared_ptr<client_t>> clients;
+    vector<shared_ptr<channel_t>> channels;
 } soq_sec;
 
 void display_error(int e);

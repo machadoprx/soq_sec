@@ -39,17 +39,12 @@ enum cmd_t{CON_SERVER, QUIT, PING, JOIN, NICKNAME, KICK, MUTE, UNMUTE, WHOIS, NO
 
 typedef struct _client {
     uint8_t user_name[20];
-    string chan = "NONE";
+    string chan = string("NONE");
     int32_t socket_desc;
     struct sockaddr_in6 user_info;
     bool muted = false;
     bool admin = false;
 } client_t;
-
-typedef struct _channel {
-    string name;
-    vector<client_t> members;
-} channel_t;
 
 typedef struct _soq_sec {
     uint16_t port;
@@ -58,8 +53,8 @@ typedef struct _soq_sec {
     uint8_t session_pvk[65]; //m
     uint8_t address[17];
     enum socket_type type;
-    vector<client_t> connected_clients;
-    map<string, vector<client_t>> channels;
+    vector<shared_ptr<client_t>> connected_clients;
+    map<string, vector<shared_ptr<client_t>>> channels;
 } soq_sec;
 
 void display_error(int e);

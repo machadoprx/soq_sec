@@ -34,7 +34,7 @@ void gen_ephemeral_keys(ec_t *curve, big_t *session, big_t *p, uint8_t *pbk_str,
 
 int send_handler(soq_sec *sock, ec_t *curve, big_t *p, big_t *session_key) {
     
-    set_cmd_line();
+    //set_cmd_line();
     uint32_t shared_key[8]; 
 
     uint8_t sender_pbk[130];

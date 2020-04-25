@@ -15,7 +15,6 @@ int get_index_by_name(vector<shared_ptr<T>> list, char *name) {
 
     if (found == false)
         obj_index = -1;
-    cout << obj_index << '\n';
 
     return obj_index;
 }
@@ -35,28 +34,32 @@ int get_index_by_desc(vector<shared_ptr<T>> list, int desc) {
 
     if (found == false)
         obj_index = -1;
-    cout << obj_index << '\n';
+
     return obj_index;
 }
 
 int write_to_client(soq_sec *host, int sender_index, fd_set *active, uint8_t buffer[], uint8_t ephem_pbk[], int len) {
     
     auto sender = host->clients.at(sender_index);
-    if (strcmp((char*)sender->chan, "NONE") == 0) {
-        return OK;
-    }
+    if (strcmp((char*)sender->chan, "NONE") == 0) return OK;
 
-    for (auto const& recipient : host->clients) {
+    int chan_index = get_index_by_name(host->channels, (char*)sender->chan);
+    if (chan_index == -1) return OK;
+
+    auto chan = host->channels.at(chan_index);
+    int muted_index = get_index_by_desc(chan->muted, sender->desc);
+    if (muted_index != -1) return OK;
+
+    for (auto const& recipient : chan->members) {
         if (FD_ISSET(recipient->desc, active)) {
-            if (strcmp((char*)recipient->chan, (char*)sender->chan) == 0) {
-                send_wait(recipient->desc, buffer, len, 500, 5);
-                usleep(250);
-                send_wait(recipient->desc, ephem_pbk, 130, 500, 5);
-                usleep(250);
-                send_wait(recipient->desc, sender->name, 20, 500, 5);
-            }
+            send_wait(recipient->desc, buffer, len, 500, 5);
+            usleep(250);
+            send_wait(recipient->desc, ephem_pbk, 130, 500, 5);
+            usleep(250);
+            send_wait(recipient->desc, sender->name, 20, 500, 5);
         }
     }
+
     return OK;
 }
 
@@ -108,6 +111,8 @@ void remove_from_chan(soq_sec *host, int user_index) {
         // remove chan from server if it is now empty
         host->channels.erase(host->channels.begin() + chan_index);
     }
+    char no_group[20] = "NONE";
+    memcpy(user->chan, no_group, 20);
 }
 
 void disconnect_client(soq_sec *host, fd_set *active_fd_set, int user_index) {
@@ -181,40 +186,46 @@ void manage_handler(soq_sec *host, uint8_t *buffer, int chunk_size, int user_ind
     else if (command == JOIN){
         join_client(host, target, user_index);
     }
+    else { // admin commands
 
-    /*else if (command == KICK){
-        int target_index = get_index_by_name(host->channels[user->chan], (char*)target);
-        auto &targ = host->channels[user->chan].at(target_index);
-        host->channels[user->chan].erase(host->channels[user->chan].begin() + target_index);
+        // check privilege
+        if (strcmp((char*)user->chan, "NONE") == 0)
+            return;
+
+        int chan_index = get_index_by_name(host->channels, (char*)user->chan);
         
-        cout << targ->chan << '\n';
-        targ->chan = string("NONE");
-        targ->muted = false;
+        if (chan_index == -1){
+            cout << "group no found\n";
+            return;
+        }
 
-        target_index = get_index_by_desc(host->connected_clients, targ->socket_desc);
-        auto &t_true = host->connected_clients.at(target_index);
+        auto &chan = host->channels.at(chan_index);
 
-        cout << t_true->chan << '\n';
+        if (chan->admin_desc != user->desc){
+            cout <<  user->name << " not autorized!\n";
+            return;
+        } // end of checking
+
+        int targ_index = get_index_by_name(host->clients, (char*)target);
+        auto targ = host->clients.at(targ_index);
+
+        if (command == KICK){
+            remove_from_chan(host, targ_index);            
+        }
+
+        else if (command == MUTE){
+            chan->muted.push_back(targ);
+        }
+
+        else if (command == UNMUTE){
+            int mem_index = get_index_by_desc(chan->muted, targ->desc);
+            chan->muted.erase(chan->muted.begin() + mem_index);
+        }
+
+        else if (command == WHOIS){
+            cout << targ->info.sin6_addr.__in6_u.__u6_addr16 << '\n';
+        }
     }
-
-    else if (command == MUTE){
-        int target_index = get_index_by_name(host->connected_clients, (char*)target);
-        auto &t_true = host->connected_clients.at(target_index);
-        t_true->muted = true;
-    }
-
-    else if (command == UNMUTE){
-        int target_index = get_index_by_name(host->connected_clients, (char*)target);
-        auto &t_true = host->connected_clients.at(target_index);
-        t_true->muted = false;
-    }
-
-    else if (command == WHOIS){
-        int target_index = get_index_by_name(host->channels[user->chan], (char*)target);
-        auto &targ = host->channels[user->chan].at(target_index);
-        cout << targ->user_info.sin6_addr.__in6_u.__u6_addr16 << '\n';
-    }*/
-
 }
 
 int clients_handler(soq_sec *host, int chunk_size) {

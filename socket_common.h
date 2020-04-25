@@ -48,7 +48,7 @@ typedef struct _channel_t {
     int32_t admin_desc;
     uint8_t name[20];
     vector<shared_ptr<client_t>> members;
-    vector<int> muted_desc;
+    vector<shared_ptr<client_t>> muted;
 } channel_t;
 
 typedef struct _soq_sec {

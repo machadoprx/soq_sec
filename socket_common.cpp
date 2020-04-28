@@ -6,15 +6,15 @@ int make_soq_sec(soq_sec *res, enum socket_type type, const char* address, const
 
     res->type = type;
     res->port = port;
-    res->socket_desc = socket(PF_INET6, SOCK_STREAM, IPPROTO_TCP);
+    res->socket_desc = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
 
     if (res->socket_desc < 0) {
         return SOCKET;
     }
     
-    res->channel.sin6_family = AF_INET6;
-    res->channel.sin6_port = htons(port);
-    if (inet_pton(AF_INET6, address, &res->channel.sin6_addr) < 0) {
+    res->channel.sin_family = AF_INET;
+    res->channel.sin_port = htons(port);
+    if (inet_aton(address, &res->channel.sin_addr) < 0) {
         return CONVERSION;
     }
 

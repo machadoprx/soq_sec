@@ -27,6 +27,7 @@ extern "C" {
 #include <vector>
 #include <memory>
 #include <random>
+#include <sstream>
 
 #define MAX_CONN 50
 #define BUFF_SIZE 4096
@@ -41,7 +42,7 @@ typedef struct _client {
     int32_t desc;
     uint8_t name[20];
     uint8_t chan[20];
-    struct sockaddr_in6 info;
+    struct sockaddr_in info;
 } client_t;
 
 typedef struct _channel_t {
@@ -54,7 +55,7 @@ typedef struct _channel_t {
 typedef struct _soq_sec {
     uint16_t port;
     int32_t socket_desc;
-    struct sockaddr_in6 channel;
+    struct sockaddr_in channel;
     uint8_t session_pvk[65]; //m
     uint8_t address[17];
     enum socket_type type;

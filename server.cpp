@@ -63,7 +63,7 @@ int write_to_client(soq_sec *host, int sender_index, fd_set *active, uint8_t buf
     return OK;
 }
 
-int connection_handler(soq_sec *host, struct sockaddr_in6 *client_name, int server_socket, fd_set *active_fd_set, int *fd_max) {
+int connection_handler(soq_sec *host, struct sockaddr_in *client_name, int server_socket, fd_set *active_fd_set, int *fd_max) {
     
     socklen_t client_size = sizeof(*client_name);
     int client = accept(server_socket, (struct sockaddr *) client_name, &client_size);
@@ -73,7 +73,7 @@ int connection_handler(soq_sec *host, struct sockaddr_in6 *client_name, int serv
     }
 
     auto user = make_shared<client_t>();
-    auto num = std::rand() & 0xffffffff;
+    auto num = rand() & 0xffffffff;
     sprintf((char*)user->name, "user%d", num);
 
     user->desc = client;
@@ -88,7 +88,7 @@ int connection_handler(soq_sec *host, struct sockaddr_in6 *client_name, int serv
         (*fd_max) = client;
     }
 
-    std::cout << user->name << ", ip " << client_name->sin6_addr.__in6_u.__u6_addr16 << " joined\n";
+    cout << user->name << ", ip " << inet_ntoa(client_name->sin_addr) << " port " << client_name->sin_port << " joined\n";
     return OK;
 }
 
@@ -169,13 +169,13 @@ void manage_handler(soq_sec *host, uint8_t *buffer, int chunk_size, int user_ind
         sscanf((char*)buffer, "%*s %s", (char*)target);
     }
 
-    if (command == PING){
-        //strcpy((char*)pang, "pong");
-        cout << "pong\n";
-        //send_wait(client_desc, pang, chunk_size, 500, 5);
-    }
+    if (command == PING) {
+        char pong[BUFF_SIZE] = "server : pong";
+        send_wait(user->desc, (uint8_t*)pong, BUFF_SIZE, 250, 5);
+        usleep(250);
 
-    else if (command == QUIT){
+    }
+    else if (command == QUIT) {
         disconnect_client(host, active_fd_set, user_index);
     }
 
@@ -195,18 +195,20 @@ void manage_handler(soq_sec *host, uint8_t *buffer, int chunk_size, int user_ind
         int chan_index = get_index_by_name(host->channels, (char*)user->chan);
         
         if (chan_index == -1){
-            cout << "group no found\n";
+            cout << "group not found\n";
             return;
         }
 
         auto &chan = host->channels.at(chan_index);
 
         if (chan->admin_desc != user->desc){
-            cout <<  user->name << " not autorized!\n";
+            cout << user->name << " not autorized!\n";
             return;
         } // end of checking
 
         int targ_index = get_index_by_name(host->clients, (char*)target);
+        if (targ_index == -1)
+            return;
         auto targ = host->clients.at(targ_index);
 
         if (command == KICK){
@@ -223,7 +225,10 @@ void manage_handler(soq_sec *host, uint8_t *buffer, int chunk_size, int user_ind
         }
 
         else if (command == WHOIS){
-            cout << targ->info.sin6_addr.__in6_u.__u6_addr16 << '\n';
+            char whois[BUFF_SIZE];
+            sprintf(whois, "server : %s", inet_ntoa(targ->info.sin_addr));
+            send_wait(user->desc, (uint8_t*)whois, BUFF_SIZE, 250, 5);
+            usleep(250);
         }
     }
 }
@@ -243,7 +248,7 @@ int clients_handler(soq_sec *host, int chunk_size) {
         }
         for (int i = 0; i <= fd_max; ++i) {
             if (FD_ISSET(i, &read_fd_set)) {
-                struct sockaddr_in6 client_name;
+                struct sockaddr_in client_name;
                 if (i == server_socket) {
                     connection_handler(host, &client_name, server_socket, &active_fd_set, &fd_max);
                 }

@@ -33,7 +33,6 @@ void gen_ephemeral_keys(ec_t *curve, big_t *session, big_t *p, uint8_t *pbk_str,
 }
 
 int send_handler(soq_sec *sock, ec_t *curve, big_t *p, big_t *session_key) {
-    
     //set_cmd_line();
     uint32_t shared_key[8]; 
 
@@ -47,16 +46,17 @@ int send_handler(soq_sec *sock, ec_t *curve, big_t *p, big_t *session_key) {
         memset(cipher, 0, BUFF_SIZE);
 
         usleep(250);
+        
         if (fscanf(stdin, "\n%[^\n]", plain_text) > 0) {
 
             if (plain_text[0] == '/') {
                 char cmd_str[15];
                 sscanf((char*)plain_text, "%s", cmd_str);
                 int cmd = get_command(cmd_str);
-                if (cmd == NOT_FOUND)
-                    cout << "command not found\n";
-                else{
+                
+                if (cmd != NOT_FOUND) {
                     send_wait(sock->socket_desc, plain_text, BUFF_SIZE, 250, 5);
+                    usleep(500);
                     if (cmd == QUIT) break;
                 } 
                 continue;
@@ -112,6 +112,12 @@ int recv_handler(soq_sec *sock, ec_t *curve, big_t *p, big_t *session_key) {
         usleep(250);
         memset(cipher, 0, BUFF_SIZE);
         if (recv_wait(sock->socket_desc, cipher, BUFF_SIZE, 250, 5) > 0) {
+            char check_sender[20];
+            sscanf((char*)cipher, "%s %*s", check_sender);
+            if (strcmp(check_sender, "server") == 0) {
+                cout << cipher << '\n';
+                continue;
+            }
             usleep(250);
             uint8_t point_str[130];
             recv_wait(sock->socket_desc, point_str, 130, 250, 5);
@@ -124,15 +130,15 @@ int recv_handler(soq_sec *sock, ec_t *curve, big_t *p, big_t *session_key) {
 
             recv_wait(sock->socket_desc, user, 20, 250, 5);
             chacha_enc(shared_key, nonce, cipher, plain_text, BUFF_SIZE);
-            fprintf(stdout, "%s : %s\n", user, plain_text);
+            cout << user << " : " << plain_text << '\n';
         }
         else {
-            fprintf(stdout, "disconnected from server, closing connection...\n");
+            cout << "disconnected from server, closing connection...\n";
             break;
         }
     }
     close(sock->socket_desc);
-    signal (SIGALRM, catch_alarm);
+    signal(SIGALRM, catch_alarm);
     alarm(2);
     wait(NULL);
     return OK;

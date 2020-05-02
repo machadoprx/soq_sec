@@ -714,9 +714,10 @@ big_rnd_dig(big_t *r)
 	big_null(r);
 	uint32_t random[16];
 	uint32_t rand_digit;
-
+	srand(time(NULL));
 	for (int i = 0; i < 16; i++) {
-		_rdseed32_step(&rand_digit);
+		rand_digit = (uint64_t)(rand() & 0xFFFFFFFFull);
+		//_rdseed32_step(&rand_digit);
 		random[i] = rand_digit;
 	}
 	chacha_block(random);

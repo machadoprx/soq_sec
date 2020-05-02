@@ -36,7 +36,7 @@ Comandos apenas para administradores de canais:
 • /whois nomeUsurio - Retorna o endereço IP do usuário apenas para o administrador
 
 ## End-to-end crypto IRC proof of concept, free of external libraries (to do)
-ECDHE - Elliptic curve diffie hellman ephemeral public keys, with curve25519 parameters
+ECDHE - Elliptic curve diffie hellman ephemeral public keys, with curve25519 parameters (almost constant time)
 
 Implemented as in: https://tools.ietf.org/html/rfc7539
 

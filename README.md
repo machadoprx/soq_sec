@@ -1,4 +1,5 @@
 # soq_sec
+Victor Machado Gonzaga - nusp 10692033
 Troque informações sigilosas de forma segura(todo)
 
 ## Como usar:

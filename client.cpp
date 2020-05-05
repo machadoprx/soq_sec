@@ -15,8 +15,11 @@ void gen_ephemeral_keys(ec_t *curve, big_t *session, big_t *p, uint8_t *pbk_str,
     big_t k, affine;
     
     big_rnd_dig(&k);
-    k.value[7] &= 0xfffffffull; // mask for cut below curve order
-    
+    // mask random bytes for using as key
+    k.value[0] &= 0xFFFFFFF8u;
+    k.value[7] &= 0x7FFFFFFFu;
+    k.value[7] |= 0x40000000u;
+
     ecp_mul_cst(curve, &curve->G, &k, p, &pbk);
     ecp_mul_cst(curve, &pbk, session, p, &shared_point);
     

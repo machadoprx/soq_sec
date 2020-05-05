@@ -56,7 +56,7 @@ serialize(uint32_t state[16], uint8_t stream[64])
 }
 
 void
-chacha_enc(uint32_t key[], uint32_t nonce[], uint8_t *plain, uint8_t *cipher, int len)
+chacha_enc(uint32_t key[8], uint32_t nonce[3], uint8_t *plain, uint8_t *cipher, int len)
 {
     int range = (int)(len / 64) - 1;
     for (int j = 0; j < range; j++) {

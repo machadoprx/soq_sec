@@ -14,6 +14,15 @@ int main(int argc, char *argv[]) {
     }
     else if (strcmp("client", argv[1]) == 0) {
     	display_error(make_soq_sec(&sock, CLIENT, argv[2], atoi(argv[3])));
-        display_error(connect_socket(&sock));
+        string buf;
+        while (true) {
+            cin >> buf;
+            if (buf.compare("/connect") == 0) {
+                display_error(connect_socket(&sock));
+            }
+            else {
+                cout << "Type /connect to start\n";
+            }
+        }
     }
 }

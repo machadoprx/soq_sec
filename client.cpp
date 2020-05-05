@@ -1,4 +1,5 @@
 #include "client.h"
+
 uint32_t nonce[] = {0x0, 0x4d, 0x0};
 
 void set_cmd_line() {
@@ -27,7 +28,7 @@ void gen_ephemeral_keys(ec_t *curve, big_t *session, big_t *p, uint8_t *pbk_str,
 
     uint32_t hash[16];
     for (int i = 0; i < 16; i++)
-        hash[i] = (uint32_t)affine.value[i];
+        hash[i] = affine.value[i];
     chacha_block(hash);
     memcpy(shared_key, hash, sizeof(uint32_t) * 8);
 

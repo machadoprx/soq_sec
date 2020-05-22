@@ -82,7 +82,6 @@ int connection_handler(soq_sec *host, struct sockaddr_in *client_name, int serve
     memcpy(user->chan, no_group, 20);
     host->clients.push_back(user);
 
-    send_wait(client, host->session_pvk, 65, 500, 5);
     FD_SET(client, active_fd_set);
     if (client > (*fd_max)) {
         (*fd_max) = client;
@@ -290,12 +289,6 @@ int start_listen(soq_sec *host, size_t chunk_size) {
     if (listen(server_socket, 1) < 0) {
         return LISTEN;
     }
-
-    std::srand(int(time(NULL)));
-    big_t m;
-    big_rnd_dig(&m);
-    m.value[7] &= 0xfffffffull;
-    big_to_str(&m, (char*)host->session_pvk);
 
     clients_handler(host, chunk_size);
 

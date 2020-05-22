@@ -10,19 +10,20 @@ void set_cmd_line() {
     tcsetattr(STDIN_FILENO, TCSANOW, &newt);
 }
 
-void gen_ephemeral_keys(ec_t *curve, big_t *session, big_t *p, uint8_t *pbk_str, uint32_t *shared_key) {
+void gen_ephemeral_keys(ec_t *curve, big_t *p, uint8_t *pbk_str, big_t *ps_key, uint32_t *shared_key) {
     memset(pbk_str, 0, 130);
     ecp_t shared_point, pbk;
     big_t k, affine;
     
     big_rnd_dig(&k);
+    // big_mul_25519(&m, ps_key, p, &k);
     // mask random bytes for using as key
     k.value[0] &= 0xFFFFFFF8u;
     k.value[7] &= 0x7FFFFFFFu;
     k.value[7] |= 0x40000000u;
 
     ecp_mul_cst(curve, &curve->G, &k, p, &pbk);
-    ecp_mul_cst(curve, &pbk, session, p, &shared_point);
+    ecp_mul_cst(curve, &pbk, ps_key, p, &shared_point);
     
     ecp_get_afn(&shared_point, p, &affine);
 
@@ -36,7 +37,7 @@ void gen_ephemeral_keys(ec_t *curve, big_t *session, big_t *p, uint8_t *pbk_str,
     big_to_str(&pbk.Z, (char*)(pbk_str + 65));
 }
 
-int send_handler(soq_sec *sock, ec_t *curve, big_t *p, big_t *session_key) {
+int send_handler(soq_sec *sock, ec_t *curve, big_t *p, big_t *ps_key) {
     //set_cmd_line();
     uint32_t shared_key[8]; 
 
@@ -66,7 +67,7 @@ int send_handler(soq_sec *sock, ec_t *curve, big_t *p, big_t *session_key) {
                 continue;
             }
 
-            gen_ephemeral_keys(curve, session_key, p, sender_pbk, shared_key);
+            gen_ephemeral_keys(curve, p, sender_pbk, ps_key, shared_key);
             chacha_enc(shared_key, nonce, plain_text, cipher, BUFF_SIZE);
 
             send_wait(sock->socket_desc, cipher, BUFF_SIZE, 250, 5);
@@ -78,11 +79,12 @@ int send_handler(soq_sec *sock, ec_t *curve, big_t *p, big_t *session_key) {
     return OK;
 }
 
-void get_shared_secret(ec_t *curve, ecp_t *sender_pbk, big_t *p, big_t *session_key, uint32_t *shared_key) {
+void get_shared_secret(ec_t *curve, ecp_t *sender_pbk, big_t *p, big_t *ps_key, uint32_t *shared_key) {
     big_t affine;
     ecp_t shared_point;
+    //big_t 
     
-    ecp_mul_cst(curve, sender_pbk, session_key, p, &shared_point);
+    ecp_mul_cst(curve, sender_pbk, ps_key, p, &shared_point);
     ecp_get_afn(&shared_point, p, &affine);
 
     uint32_t hash[16];
@@ -102,7 +104,7 @@ void str_to_ecp(uint8_t str[130], ecp_t *point) {
     hex_to_big((char*)Z, &point->Z);
 }
 
-int recv_handler(soq_sec *sock, ec_t *curve, big_t *p, big_t *session_key) {
+int recv_handler(soq_sec *sock, ec_t *curve, big_t *p, big_t *ps_key) {
 
     ecp_t sender_pbk;
     
@@ -127,7 +129,7 @@ int recv_handler(soq_sec *sock, ec_t *curve, big_t *p, big_t *session_key) {
             recv_wait(sock->socket_desc, point_str, 130, 250, 5);
 
             str_to_ecp(point_str, &sender_pbk);
-            get_shared_secret(curve, &sender_pbk, p, session_key, shared_key);
+            get_shared_secret(curve, &sender_pbk, p, ps_key, shared_key);
             
             uint8_t user[20];
             memset(plain_text, 0, BUFF_SIZE);
@@ -161,22 +163,33 @@ int connect_socket(soq_sec *sock) {
     ec_t curve;
     ec_init_c25519(curve);
 
-    uint8_t session_key[65];
-    memset(session_key, 0, 65);
-
-    // send new user nickname
-    recv_wait(sock->socket_desc, session_key, 65, 500, 5);
-    big_t session;
-    hex_to_big((char*)session_key, &session);
+    // psk + ephemeral keys -> not repeating nonce
+    string psk;
+    while (psk.size() < 8 || psk.size() > 16) {
+        cout << "Type a shared secret for decrypting and encrypting your messages (only alpha-numeric) : ";
+        cin >> psk;
+    }
+    char get_passwd[100];
+    sprintf(get_passwd, "mkpasswd -m sha-512 password -s \"%s\" | sha256sum | cut -b1-64 > passwd", psk.c_str());
+    system(get_passwd);
+    FILE *fp = fopen("passwd", "r");
+    fgets(get_passwd, 65, fp);
+    fclose(fp);
+    system("rm passwd");
+    big_t ps_key;
+    hex_to_big(get_passwd, &ps_key);
+    ps_key.value[0] &= 0xFFFFFFF8u;
+    ps_key.value[7] &= 0x7FFFFFFFu;
+    ps_key.value[7] |= 0x40000000u;
 
     signal(SIGINT, SIG_IGN);
     pid_t child_pid = fork();
 
     if (child_pid == 0) {
-        send_handler(sock, &curve, &p, &session);
+        send_handler(sock, &curve, &p, &ps_key);
     }
     else if (child_pid > 0){
-        recv_handler(sock, &curve, &p, &session);
+        recv_handler(sock, &curve, &p, &ps_key);
     }
 
     return OK;

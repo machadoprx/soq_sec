@@ -56,7 +56,6 @@ typedef struct _soq_sec {
     uint16_t port;
     int32_t socket_desc;
     struct sockaddr_in channel;
-    uint8_t session_pvk[65]; //m
     uint8_t address[17];
     enum socket_type type;
     vector<shared_ptr<client_t>> clients;

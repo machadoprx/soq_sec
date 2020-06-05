@@ -11,6 +11,8 @@ Iniciar servidor:
 Iniciar cliente:
 ```./soq_sec client <ip> <port>```
 
+Nota: Para restringir a decriptação das mensagens apenas para usuários, é necessário que se insira uma senha, comum a todos, no começo da conexão. Do contrário as mensagens entre usuários não serão intelígiveis
+
 ## Comandos disponíveis:
 
 • /connect - Estabelece a conexão com o servidor;

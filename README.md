@@ -11,7 +11,6 @@ Iniciar servidor:
 Iniciar cliente:
 ```./soq_sec client <ip> <port>```
 
-Nota: Para restringir a decriptação das mensagens apenas para usuários, é necessário que se insira uma senha, comum a todos, no começo da conexão. Do contrário as mensagens entre usuários não serão intelígiveis
 
 ## Comandos disponíveis:
 
@@ -36,12 +35,3 @@ Comandos apenas para administradores de canais:
 • /unmute nomeUsurio - Retira o mute de um usuário.
 
 • /whois nomeUsurio - Retorna o endereço IP do usuário apenas para o administrador
-
-## End-to-end crypto IRC proof of concept, free of external libraries (to do)
-ECDHE - Elliptic curve diffie hellman ephemeral public keys, with curve25519 parameters (almost constant time)
-
-Implemented as in: https://tools.ietf.org/html/rfc7539
-
-chacha20 - Stream cipher for message encryption
-
-poly1305 - MAC

@@ -1,6 +1,5 @@
 # soq_sec
 Victor Machado Gonzaga - nusp 10692033
-Troque informações sigilosas de forma segura(todo)
 
 ## Como usar:
 Clone o repositório e na pasta gerada, use o make para compilar o código.

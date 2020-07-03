@@ -1,6 +1,6 @@
 #include "socket_common.h"
 
-int make_soq_sec(soq_sec *res, enum socket_type type, const char* address, const uint16_t port) {
+int make_soqueto(soqueto *res, enum socket_type type, const char* address, const uint16_t port) {
 
     strcpy((char*)res->address, address);
 
@@ -54,27 +54,6 @@ int recv_wait(int sock, uint8_t *data, int len, int sleep_time, int tries) {
 
 void catch_alarm (int sig) {
     kill(0, SIGTERM);
-}
-
-void display_error(int e) {
-    std::string msg;
-    switch(e) {
-        case OK: return;
-        case LISTEN: msg = "error start lister"; break;
-        case END: msg = "reached eof"; break;
-        case SELECT: msg = "error selecting client sockets"; break;
-        case ACCEPT: msg = "error accepting client"; break;
-        case BIND: msg = "error binding socket"; break;
-        case SOCKET: msg = "error creating socket"; break;
-        case CONNECT: msg = "error connecting to server"; break;
-        case PARSE: msg = "error parsing ip"; break;
-        case CONVERSION: msg = "error converting ip"; break;
-        case REVERSE: msg = "no reverse name for ip"; break;
-        case READ: msg = "error reading"; break;
-        case WRITE: msg = "error writing"; break;
-        default: msg = "undefined behaviour"; break;
-    }
-    std::cerr << msg << '\n';
 }
 
 int get_command(const char* command) {

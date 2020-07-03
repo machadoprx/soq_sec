@@ -1,2 +1,2 @@
 all:
-	g++ -Ofast -pipe -flto -march=native -mtune=native -Wall main.cpp socket_common.cpp client.cpp server.cpp MeekSpeak-Crypto/bn/bn.c MeekSpeak-Crypto/ecc/ecc_25519.c MeekSpeak-Crypto/hash/hash.c -o soq_sec
+	g++ -Wall main.cpp socket_common.cpp client.cpp server.cpp -S

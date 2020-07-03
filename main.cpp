@@ -3,26 +3,40 @@
 #include "client.h"
 
 int main(int argc, char *argv[]) {
-    soq_sec sock;
+    soqueto sock;
     if (strcmp("server", argv[1]) == 0) {
-        int make_err = make_soq_sec(&sock, SERVER, argv[2], atoi(argv[3]));
-        if (make_err != OK){
-            display_error(make_err);
+        if (argc < 4) {
+            cout << "You need to specify the arguments ./irc_server [type] [ip address] [port]\n";
             exit(0);
         }
-	    display_error(start_listen(&sock, BUFF_SIZE));
+        int make_err = make_soqueto(&sock, SERVER, argv[2], atoi(argv[3]));
+        if (make_err != OK){
+            cout << "Error creating socket " << make_err << "\n";
+            exit(0);
+        }
+	    int list_err = start_listen(&sock, BUFF_SIZE);
+        if (list_err != OK){
+            cout << "Error listening " << list_err << "\n";
+            exit(0);
+        }
     }
     else if (strcmp("client", argv[1]) == 0) {
-    	display_error(make_soq_sec(&sock, CLIENT, argv[2], atoi(argv[3])));
+        if (argc != 4) {
+            cout << "You need to specify the arguments ./irc_server [type] [ip address] [port]\n";
+            exit(0);
+        }
+    	make_soqueto(&sock, CLIENT, argv[2], atoi(argv[3]));
         string buf;
-        while (true) {
+        do {
+            cout << "Type /connect to start\n";
             cin >> buf;
             if (buf.compare("/connect") == 0) {
-                display_error(connect_socket(&sock));
+                int conn_err = connect_socket(&sock);
+                if (conn_err != OK) {
+                    cout << "Error connecting " << conn_err << "\n";
+                }
+                break;
             }
-            else {
-                cout << "Type /connect to start\n";
-            }
-        }
+        } while (true);
     }
 }

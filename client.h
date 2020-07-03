@@ -7,9 +7,8 @@ extern "C" {
     #include <unistd.h>
 }
 
-
-int read_from_server(soq_sec *sock, uint8_t *buffer, int len);
-int write_to_server(soq_sec *sock, uint8_t *msg, int len);
-int connect_socket(soq_sec *sock);
+int read_from_server(soqueto *sock, uint8_t *buffer, int len);
+int write_to_server(soqueto *sock, uint8_t *msg, int len);
+int connect_socket(soqueto *sock);
 
 #endif

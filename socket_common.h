@@ -18,9 +18,6 @@ extern "C" {
     #include <signal.h>
     #include <sys/wait.h>
 }
-#include "MeekSpeak-Crypto/bn/bn.h"
-#include "MeekSpeak-Crypto/ecc/ecc_25519.h" 
-#include "MeekSpeak-Crypto/hash/hash.h" 
 #include <string>
 #include <iostream>
 #include <map>
@@ -52,7 +49,7 @@ typedef struct _channel_t {
     vector<shared_ptr<client_t>> muted;
 } channel_t;
 
-typedef struct _soq_sec {
+typedef struct _soqueto {
     uint16_t port;
     int32_t socket_desc;
     struct sockaddr_in channel;
@@ -60,11 +57,10 @@ typedef struct _soq_sec {
     enum socket_type type;
     vector<shared_ptr<client_t>> clients;
     vector<shared_ptr<channel_t>> channels;
-} soq_sec;
+} soqueto;
 
-void display_error(int e);
 void catch_alarm (int sig);
-int make_soq_sec(soq_sec *res, enum socket_type type, const char *address, const uint16_t port);
+int make_soqueto(soqueto *res, enum socket_type type, const char *address, const uint16_t port);
 int send_wait(int sock, uint8_t *data, int len, int sleep_time, int tries);
 int recv_wait(int sock, uint8_t *data, int len, int sleep_time, int tries);
 int get_command(const char* command);

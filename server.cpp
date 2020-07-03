@@ -38,7 +38,7 @@ int get_index_by_desc(vector<shared_ptr<T>> list, int desc) {
     return obj_index;
 }
 
-int write_to_client(soq_sec *host, int sender_index, fd_set *active, uint8_t buffer[], uint8_t ephem_pbk[], int len) {
+int write_to_client(soqueto *host, int sender_index, fd_set *active, uint8_t buffer[], int len) {
     
     auto sender = host->clients.at(sender_index);
     if (strcmp((char*)sender->chan, "NONE") == 0) return OK;
@@ -49,21 +49,30 @@ int write_to_client(soq_sec *host, int sender_index, fd_set *active, uint8_t buf
     auto chan = host->channels.at(chan_index);
     int muted_index = get_index_by_desc(chan->muted, sender->desc);
     if (muted_index != -1) return OK;
+    
+    uint8_t msg[BUFF_SIZE];
+    memset(msg, 0, BUFF_SIZE);
+    int i = 0;
+    for (;i < (int)strlen((char*)sender->name) - 1; i++) msg[i] = sender->name[i];
+    msg[i + 1] = ' ';
+    msg[i + 2] = ':';
+    msg[i + 3] = ' ';
+    i += 4;
+    int k = 0;
+    for (; i < len; i++) {
+        msg[i] = buffer[k++];
+    }
 
     for (auto const& recipient : chan->members) {
         if (FD_ISSET(recipient->desc, active)) {
-            send_wait(recipient->desc, buffer, len, 500, 5);
-            usleep(250);
-            send_wait(recipient->desc, ephem_pbk, 130, 500, 5);
-            usleep(250);
-            send_wait(recipient->desc, sender->name, 20, 500, 5);
+            send_wait(recipient->desc, msg, BUFF_SIZE, 250, 5);
         }
     }
 
     return OK;
 }
 
-int connection_handler(soq_sec *host, struct sockaddr_in *client_name, int server_socket, fd_set *active_fd_set, int *fd_max) {
+int connection_handler(soqueto *host, struct sockaddr_in *client_name, int server_socket, fd_set *active_fd_set, int *fd_max) {
     
     socklen_t client_size = sizeof(*client_name);
     int client = accept(server_socket, (struct sockaddr *) client_name, &client_size);
@@ -87,11 +96,14 @@ int connection_handler(soq_sec *host, struct sockaddr_in *client_name, int serve
         (*fd_max) = client;
     }
 
+    char greetings[BUFF_SIZE] = "\t\t\t** Welcome to the IRC Server **\n\t\t\tTo quit, type /quit\n";
+    send_wait(client, (uint8_t*)greetings, BUFF_SIZE, 250, 5);
+
     cout << user->name << ", ip " << inet_ntoa(client_name->sin_addr) << " port " << client_name->sin_port << " joined\n";
     return OK;
 }
 
-void remove_from_chan(soq_sec *host, int user_index) {
+void remove_from_chan(soqueto *host, int user_index) {
     auto user = host->clients.at(user_index);
 
     int chan_index = get_index_by_name(host->channels, (char*)user->chan);
@@ -100,46 +112,51 @@ void remove_from_chan(soq_sec *host, int user_index) {
     int mem_index = get_index_by_desc(chan->members, user->desc);
     chan->members.erase(chan->members.begin() + mem_index);
 
-    // if chan still have members delete and delegate admin, if necessary
     if (chan->members.size() > 0) {
         if (chan->admin_desc == user->desc) {
             chan->admin_desc = chan->members.at(0)->desc;
         }
     }
     else {
-        // remove chan from server if it is now empty
         host->channels.erase(host->channels.begin() + chan_index);
     }
     char no_group[20] = "NONE";
     memcpy(user->chan, no_group, 20);
 }
 
-void disconnect_client(soq_sec *host, fd_set *active_fd_set, int user_index) {
+void disconnect_client(soqueto *host, fd_set *active_fd_set, int user_index) {
     auto user = host->clients.at(user_index);
 
     if (strcmp((char*)user->chan, "NONE") != 0) {  
         remove_from_chan(host, user_index);
     }
-    // remove user from server
+
     host->clients.erase(host->clients.begin() + user_index);
     close(user->desc);
     FD_CLR(user->desc, active_fd_set);
 }
 
-void join_client(soq_sec *host, uint8_t chan[20], int user_index) {
+void join_client(soqueto *host, uint8_t chan[20], int user_index) {
+        
     auto user = host->clients.at(user_index);
-    // check if user already joinned a channel
+
+    if (chan[0] != '#') {
+        char warn[BUFF_SIZE] = "server : Channel name format invalid";
+        send_wait(user->desc, (uint8_t*)warn, BUFF_SIZE, 250, 5);
+        usleep(250);
+        return;
+    }
+    
     if (strcmp((char*)user->chan, "NONE") != 0) {
         remove_from_chan(host, user_index);
     }
-    // if target channel is user's current
     else if (strcmp((char*)user->chan, (char*)chan) == 0) {
         return;
     }
 
     memcpy(user->chan, chan, 20);
     int chan_index = get_index_by_name(host->channels, (char*)chan);
-    // create chan if it does not exist
+
     if (chan_index == -1) {
         shared_ptr<channel_t> new_chan = make_shared<channel_t>();
         new_chan->admin_desc = user->desc;
@@ -152,7 +169,7 @@ void join_client(soq_sec *host, uint8_t chan[20], int user_index) {
     }
 }
 
-void manage_handler(soq_sec *host, uint8_t *buffer, int chunk_size, int user_index, fd_set *active_fd_set) {
+void manage_handler(soqueto *host, uint8_t *buffer, int chunk_size, int user_index, fd_set *active_fd_set) {
 
     char cmd_str[20];
     sscanf((char*)buffer, "%s", cmd_str);
@@ -162,7 +179,6 @@ void manage_handler(soq_sec *host, uint8_t *buffer, int chunk_size, int user_ind
 
     uint8_t target[20];
 
-    // get command target
     if (command == NICKNAME || command == JOIN || command == KICK 
         || command == MUTE || command == UNMUTE || command == WHOIS) {
         sscanf((char*)buffer, "%*s %s", (char*)target);
@@ -172,7 +188,6 @@ void manage_handler(soq_sec *host, uint8_t *buffer, int chunk_size, int user_ind
         char pong[BUFF_SIZE] = "server : pong";
         send_wait(user->desc, (uint8_t*)pong, BUFF_SIZE, 250, 5);
         usleep(250);
-
     }
     else if (command == QUIT) {
         disconnect_client(host, active_fd_set, user_index);
@@ -185,9 +200,8 @@ void manage_handler(soq_sec *host, uint8_t *buffer, int chunk_size, int user_ind
     else if (command == JOIN){
         join_client(host, target, user_index);
     }
-    else { // admin commands
+    else {
 
-        // check privilege
         if (strcmp((char*)user->chan, "NONE") == 0)
             return;
 
@@ -203,7 +217,7 @@ void manage_handler(soq_sec *host, uint8_t *buffer, int chunk_size, int user_ind
         if (chan->admin_desc != user->desc){
             cout << user->name << " not autorized!\n";
             return;
-        } // end of checking
+        }
 
         int targ_index = get_index_by_name(host->clients, (char*)target);
         if (targ_index == -1)
@@ -232,7 +246,7 @@ void manage_handler(soq_sec *host, uint8_t *buffer, int chunk_size, int user_ind
     }
 }
 
-int clients_handler(soq_sec *host, int chunk_size) {
+int clients_handler(soqueto *host, int chunk_size) {
 
     int server_socket = host->socket_desc;
     fd_set active_fd_set, read_fd_set;
@@ -264,10 +278,7 @@ int clients_handler(soq_sec *host, int chunk_size) {
                             manage_handler(host, buffer, chunk_size, user_index, &active_fd_set);
                         }
                         else {
-                            usleep(250);
-                            uint8_t ephem_pbk[130];
-                            recv_wait(i, ephem_pbk, 130, 250, 5);
-                            write_to_client(host, user_index, &active_fd_set, buffer, ephem_pbk, chunk_size);
+                            write_to_client(host, user_index, &active_fd_set, buffer, chunk_size);
                         }
                     }
                 }
@@ -277,20 +288,17 @@ int clients_handler(soq_sec *host, int chunk_size) {
     return OK;
 }
 
-int start_listen(soq_sec *host, size_t chunk_size) {
-    
-    int status = OK;
+int start_listen(soqueto *host, size_t chunk_size) {
 
     if (host->type != SERVER) {
         return SERVER;
     }
-    int server_socket = host->socket_desc;
 
-    if (listen(server_socket, 1) < 0) {
+    if (listen(host->socket_desc, 1) < 0) {
         return LISTEN;
     }
 
     clients_handler(host, chunk_size);
 
-    return status;
+    return OK;
 }

@@ -38,6 +38,12 @@ int get_index_by_desc(vector<shared_ptr<T>> list, int desc) {
     return obj_index;
 }
 
+void format_msg(char *name, char *content, char *msg) {
+    time_t current_time = time(NULL);
+    struct tm tm = *localtime(&current_time);
+    sprintf(msg, "[%d:%d:%d] %s -> %s", tm.tm_hour, tm.tm_min, tm.tm_sec, name, content);
+}
+
 int write_to_client(soqueto *host, int sender_index, fd_set *active, uint8_t buffer[], int len) {
     
     auto sender = host->clients.at(sender_index);
@@ -51,17 +57,7 @@ int write_to_client(soqueto *host, int sender_index, fd_set *active, uint8_t buf
     if (muted_index != -1) return OK;
     
     uint8_t msg[BUFF_SIZE];
-    memset(msg, 0, BUFF_SIZE);
-    int i = 0;
-    for (;i < (int)strlen((char*)sender->name) - 1; i++) msg[i] = sender->name[i];
-    msg[i + 1] = ' ';
-    msg[i + 2] = ':';
-    msg[i + 3] = ' ';
-    i += 4;
-    int k = 0;
-    for (; i < len; i++) {
-        msg[i] = buffer[k++];
-    }
+    format_msg((char*)sender->name, (char*)buffer, (char*)msg);
 
     for (auto const& recipient : chan->members) {
         if (FD_ISSET(recipient->desc, active)) {
@@ -174,7 +170,9 @@ void manage_handler(soqueto *host, uint8_t *buffer, int chunk_size, int user_ind
     char cmd_str[20];
     sscanf((char*)buffer, "%s", cmd_str);
     int command = get_command(cmd_str);
-
+    if (command == NOT_FOUND) {
+        return;
+    }
     auto &user = host->clients.at(user_index);
 
     uint8_t target[20];

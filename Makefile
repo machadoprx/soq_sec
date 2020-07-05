@@ -1,2 +1,2 @@
 all:
-	g++ -Wall main.cpp socket_common.cpp client.cpp server.cpp -S
+	g++ -Wall main.cpp socket_common.cpp client.cpp server.cpp -o irc_server

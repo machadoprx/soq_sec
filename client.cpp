@@ -10,7 +10,8 @@ int send_handler(soqueto *sock) {
             send_wait(sock->socket_desc, msg, BUFF_SIZE, 250, 5);
             if (strcmp((char*)msg, "/quit") == 0)
                 break;
-            memset(msg, 0, BUFF_SIZE);
+            printf("\033[A\33[2K\r");
+            //memset(msg, 0, BUFF_SIZE);
         }
     }
     wait(NULL);

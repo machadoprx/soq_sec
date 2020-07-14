@@ -41,7 +41,7 @@ int get_index_by_desc(vector<shared_ptr<T>> list, int desc) {
 void format_msg(char *name, char *content, char *msg) {
     time_t current_time = time(NULL);
     struct tm tm = *localtime(&current_time);
-    sprintf(msg, "[%d:%d:%d] %s -> %s", tm.tm_hour, tm.tm_min, tm.tm_sec, name, content);
+    sprintf(msg, "[%02d:%02d:%02d] %s -> %s", tm.tm_hour, tm.tm_min, tm.tm_sec, name, content);
 }
 
 int write_to_client(soqueto *host, int sender_index, fd_set *active, uint8_t buffer[], int len) {
@@ -102,6 +102,10 @@ int connection_handler(soqueto *host, struct sockaddr_in *client_name, int serve
 void remove_from_chan(soqueto *host, int user_index) {
     auto user = host->clients.at(user_index);
 
+    if (strcmp((char*)user->chan, "NONE") == 0) {  
+        return;
+    }
+
     int chan_index = get_index_by_name(host->channels, (char*)user->chan);
     auto chan = host->channels.at(chan_index);
 
@@ -123,9 +127,7 @@ void remove_from_chan(soqueto *host, int user_index) {
 void disconnect_client(soqueto *host, fd_set *active_fd_set, int user_index) {
     auto user = host->clients.at(user_index);
 
-    if (strcmp((char*)user->chan, "NONE") != 0) {  
-        remove_from_chan(host, user_index);
-    }
+    remove_from_chan(host, user_index);
 
     host->clients.erase(host->clients.begin() + user_index);
     close(user->desc);
@@ -139,14 +141,12 @@ void join_client(soqueto *host, uint8_t chan[20], int user_index) {
     if (chan[0] != '#') {
         char warn[BUFF_SIZE] = "server : Channel name format invalid";
         send_wait(user->desc, (uint8_t*)warn, BUFF_SIZE, 250, 5);
-        usleep(250);
         return;
     }
     
-    if (strcmp((char*)user->chan, "NONE") != 0) {
-        remove_from_chan(host, user_index);
-    }
-    else if (strcmp((char*)user->chan, (char*)chan) == 0) {
+    remove_from_chan(host, user_index);
+
+    if (strcmp((char*)user->chan, (char*)chan) == 0) {
         return;
     }
 

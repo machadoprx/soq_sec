@@ -5,10 +5,10 @@ Victor Machado Gonzaga - nusp 10692033
 Clone o repositório e na pasta gerada, use o make para compilar o código.
 
 Iniciar servidor:
-```./soq_sec server <ip> <port>```
+```./irc_server server <ip> <port>```
 
 Iniciar cliente:
-```./soq_sec client <ip> <port>```
+```./irc_server client <ip> <port>```
 
 
 ## Comandos disponíveis:
